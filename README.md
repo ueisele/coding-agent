@@ -16,7 +16,7 @@ The agent decides on its own when and how to use these tools to accomplish a tas
 
 ## Prerequisites
 
-- [Go](https://go.dev/) 1.24+
+- [Go](https://go.dev/) 1.26.2
 - An [Anthropic API key](https://console.anthropic.com/settings/keys)
 
 ## Usage
