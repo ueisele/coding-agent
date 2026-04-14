@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/invopop/jsonschema"
 )
 
@@ -76,19 +78,38 @@ func (a *Agent) Run(ctx context.Context) error {
 			conversation = append(conversation, userMessage)
 		}
 
-		message, err := a.runInference(ctx, conversation)
-		if err != nil {
+		stream := a.runInference(ctx, conversation)
+		message := anthropic.Message{}
+		printedPrefix := false
+		start := time.Now()
+		for stream.Next() {
+			event := stream.Current()
+			if err := message.Accumulate(event); err != nil {
+				return err
+			}
+			if event.Type == "content_block_delta" && event.Delta.Type == "text_delta" {
+				if !printedPrefix {
+					fmt.Print("\u001b[93mClaude\u001b[0m: ")
+					printedPrefix = true
+				}
+				fmt.Print(event.Delta.Text)
+			}
+		}
+		if printedPrefix {
+			fmt.Println()
+		}
+		if err := stream.Err(); err != nil {
 			return err
 		}
+		elapsed := time.Since(start)
+		tokPerSec := float64(message.Usage.OutputTokens) / elapsed.Seconds()
+		fmt.Printf("\u001b[90m[in=%d out=%d · %.1fs · %.0f tok/s]\u001b[0m\n",
+			message.Usage.InputTokens, message.Usage.OutputTokens, elapsed.Seconds(), tokPerSec)
 		conversation = append(conversation, message.ToParam())
 
 		toolResults := []anthropic.ContentBlockParamUnion{}
 		for _, content := range message.Content {
-			switch content.Type {
-			case "text":
-				fmt.Printf("\u001b[93mClaude\u001b[0m: %s\n", content.Text)
-			case "tool_use":
-				fmt.Printf("\u001b[93mClaude\u001b[0m: %s\n", content.Text)
+			if content.Type == "tool_use" {
 				result := a.executeTool(content.ID, content.Name, content.Input)
 				toolResults = append(toolResults, result)
 			}
@@ -104,8 +125,8 @@ func (a *Agent) Run(ctx context.Context) error {
 	return nil
 }
 
-func (a *Agent) runInference(ctx context.Context, conversation []anthropic.MessageParam) (*anthropic.Message, error) {
-		anthropicTools := []anthropic.ToolUnionParam{}
+func (a *Agent) runInference(ctx context.Context, conversation []anthropic.MessageParam) *ssestream.Stream[anthropic.MessageStreamEventUnion] {
+	anthropicTools := []anthropic.ToolUnionParam{}
 	for _, tool := range a.tools {
 		anthropicTools = append(anthropicTools, anthropic.ToolUnionParam{
 			OfTool: &anthropic.ToolParam{
@@ -116,13 +137,12 @@ func (a *Agent) runInference(ctx context.Context, conversation []anthropic.Messa
 		})
 	}
 
-	message, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
-		Model:     anthropic.ModelClaudeOpus4_6,
+	return a.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.ModelClaudeHaiku4_5,
 		MaxTokens: int64(1024),
 		Messages:  conversation,
 		Tools:     anthropicTools,
 	})
-	return message, err
 }
 
 func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.ContentBlockParamUnion {
