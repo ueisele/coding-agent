@@ -23,19 +23,21 @@ The agent decides on its own when and how to use these tools to accomplish a tas
 
 ```sh
 export ANTHROPIC_API_KEY="your-key-here"
-go run main.go
+go run .
 ```
 
 Then just talk to it:
 
 ```
 You: What Go version does this project use?
-Claude: [reads go.mod] This project uses Go 1.24.1.
+Claude: [reads go.mod] This project uses Go 1.26.2.
 ```
+
+The UI runs as a [Bubble Tea](https://github.com/charmbracelet/bubbletea) TUI with a bordered input box at the bottom, streaming output, and markdown rendering via [Glamour](https://github.com/charmbracelet/glamour). Ctrl+C or Ctrl+D (on empty input) to quit.
 
 ## How It Works
 
-The entire agent is under 400 lines of Go. The core loop is:
+The core loop is:
 
 1. Read user input
 2. Send conversation to Claude (including tool definitions)
