@@ -49,10 +49,6 @@ var (
 				Foreground(lipgloss.Color("240")).
 				Italic(true)
 
-	welcomeToolsStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("82")).
-				Bold(true)
-
 	welcomeKeyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("179")).
 			Bold(true)

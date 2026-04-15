@@ -70,26 +70,23 @@ func (m Model) welcomeScreen() string {
 	logo := welcomeLogoStyle.Render(welcomeLogo)
 	title := welcomeTitleStyle.Render("coding-agent")
 	subtitle := welcomeSubtitleStyle.Render("a minimal code-editing agent in Go")
-	tagline := welcomeTaglineStyle.Render("based on ampcode.com/notes/how-to-build-an-agent")
+	repo := welcomeTaglineStyle.Render("github.com/ueisele/coding-agent")
 
-	tools := welcomeToolsStyle.Render("⚙ read_file   list_files   edit_file")
-
+	keyCol := welcomeKeyStyle.Width(20)
 	keyRow := func(key, desc string) string {
-		return welcomeKeyStyle.Render(key) + "  " + welcomeKeyDescStyle.Render(desc)
+		return keyCol.Render(key) + welcomeKeyDescStyle.Render(desc)
 	}
 	keys := lipgloss.JoinVertical(lipgloss.Left,
-		keyRow("Enter            ", "send message"),
+		keyRow("Enter", "send message"),
 		keyRow("Alt+Enter / Ctrl+J", "insert newline"),
-		keyRow("Ctrl+C / Ctrl+D  ", "quit"),
+		keyRow("Ctrl+C / Ctrl+D", "quit"),
 	)
 
 	rightBlock := lipgloss.JoinVertical(lipgloss.Left,
 		title,
 		"",
 		subtitle,
-		tagline,
-		"",
-		tools,
+		repo,
 		"",
 		keys,
 	)
