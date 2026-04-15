@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ueisele/coding-agent/internal/agent"
 )
@@ -77,6 +78,8 @@ type Model struct {
 	// rejectFlashSeq is a monotonic counter used to invalidate stale
 	// rejectFlashClearMsg ticks when repeated rejections overlap.
 	rejectFlashSeq int
+	// flashingReject drives the textarea's outer border color in View().
+	flashingReject bool
 
 	width, height int
 }
@@ -103,8 +106,13 @@ func New(deps Deps) Model {
 		key.WithHelp("alt+enter", "insert newline"),
 	)
 
-	ta.FocusedStyle.Base = textareaBorderNormal
-	ta.BlurredStyle.Base = textareaBorderNormal
+	// Disable the textarea's own border — we wrap its View() output in our
+	// own lipgloss border at render time. This avoids a pointer hazard
+	// inside textarea.Model where its unexported style pointer leaks
+	// between value copies of the enclosing struct.
+	noBorder := lipgloss.NewStyle()
+	ta.FocusedStyle.Base = noBorder
+	ta.BlurredStyle.Base = noBorder
 
 	vp := viewport.New(80, 20)
 
@@ -162,10 +170,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Type == tea.KeyCtrlD && m.textarea.Value() == "" {
 			return m, tea.Quit
 		}
-		// Note: the m.streaming guard here is presentation state. The agent
-		// independently enforces "one turn at a time" via its atomic busy
-		// flag and will return ErrAgentBusy if this guard is ever bypassed.
-		if msg.Type == tea.KeyEnter && !msg.Alt && !m.streaming {
+		// The agent is the single source of truth for "can I start a new
+		// turn right now?" — if it's already running one, Submit returns
+		// ErrAgentBusy synchronously and we flash. We deliberately do not
+		// gate on m.streaming here; that field is presentation state only.
+		if msg.Type == tea.KeyEnter && !msg.Alt {
 			userText := strings.TrimSpace(m.textarea.Value())
 			if userText == "" {
 				break
@@ -175,7 +184,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Synchronous rejection (ErrAgentBusy). Don't touch history
 				// or the textarea — just flash the border red so the user
 				// notices the message wasn't sent, and they can retry.
-				return m, m.flashReject()
+				// Call flashReject first so its pointer-receiver mutation
+				// lands on m before we return (Go evaluates return values
+				// left-to-right, which would otherwise snapshot m before
+				// the mutation).
+				cmd := m.flashReject()
+				return m, cmd
 			}
 			m.textarea.Reset()
 			m.history = append(m.history, entry{kind: entryUser, raw: userText})
@@ -203,8 +217,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Stale ticks (e.g. older rejections) are invalidated here so a
 		// rapid series of rejections doesn't leave the border desynced.
 		if msg.seq == m.rejectFlashSeq {
-			m.textarea.FocusedStyle.Base = textareaBorderNormal
-			m.textarea.BlurredStyle.Base = textareaBorderNormal
+			m.flashingReject = false
 		}
 
 	case turnDoneMsg:
@@ -309,14 +322,14 @@ func (m Model) finalizeAssistant() Model {
 	return m
 }
 
-// flashReject switches the textarea border to the reject color and schedules
-// a tick that will restore it after rejectFlashDuration. The sequence
-// counter is bumped on every call so pending clears from earlier rejections
-// no-op when they fire.
+// flashReject flips the textarea's outer border to the reject color and
+// schedules a tick that will restore it after rejectFlashDuration. The
+// sequence counter is bumped on every call so pending clears from earlier
+// rejections no-op when they fire. The actual border color is chosen by
+// View() based on m.flashingReject — no textarea internal state is touched.
 func (m *Model) flashReject() tea.Cmd {
 	m.rejectFlashSeq++
-	m.textarea.FocusedStyle.Base = textareaBorderReject
-	m.textarea.BlurredStyle.Base = textareaBorderReject
+	m.flashingReject = true
 	seq := m.rejectFlashSeq
 	return tea.Tick(rejectFlashDuration, func(time.Time) tea.Msg {
 		return rejectFlashClearMsg{seq: seq}

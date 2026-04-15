@@ -7,9 +7,13 @@ import (
 )
 
 func (m Model) View() string {
+	border := textareaBorderNormal
+	if m.flashingReject {
+		border = textareaBorderReject
+	}
 	return lipgloss.JoinVertical(lipgloss.Left,
 		m.viewport.View(),
-		m.textarea.View(),
+		border.Render(m.textarea.View()),
 	)
 }
 
