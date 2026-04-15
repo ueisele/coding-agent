@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/ueisele/coding-agent/internal/agent"
 )
@@ -108,14 +108,15 @@ func New(deps Deps) Model {
 	)
 
 	// Disable the textarea's own border — we wrap its View() output in our
-	// own lipgloss border at render time. This avoids a pointer hazard
-	// inside textarea.Model where its unexported style pointer leaks
-	// between value copies of the enclosing struct.
+	// own lipgloss border at render time. In bubbles v2 styles are accessed
+	// via Styles() / SetStyles() rather than direct field mutation.
+	styles := ta.Styles()
 	noBorder := lipgloss.NewStyle()
-	ta.FocusedStyle.Base = noBorder
-	ta.BlurredStyle.Base = noBorder
+	styles.Focused.Base = noBorder
+	styles.Blurred.Base = noBorder
+	ta.SetStyles(styles)
 
-	vp := viewport.New(80, 20)
+	vp := viewport.New()
 
 	r, _ := glamour.NewTermRenderer(
 		glamour.WithStandardStyle("dark"),
@@ -147,8 +148,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if vpHeight < 3 {
 			vpHeight = 3
 		}
-		m.viewport.Width = msg.Width
-		m.viewport.Height = vpHeight
+		m.viewport.SetWidth(msg.Width)
+		m.viewport.SetHeight(vpHeight)
 		wrap := msg.Width - 4
 		if wrap < 20 {
 			wrap = 20
@@ -164,18 +165,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.GotoBottom()
 		}
 
-	case tea.KeyMsg:
-		if msg.Type == tea.KeyCtrlC {
+	case tea.KeyPressMsg:
+		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
-		if msg.Type == tea.KeyCtrlD && m.textarea.Value() == "" {
+		if msg.String() == "ctrl+d" && m.textarea.Value() == "" {
 			return m, tea.Quit
 		}
 		// The agent is the single source of truth for "can I start a new
 		// turn right now?" — if it's already running one, Submit returns
 		// ErrAgentBusy synchronously and we flash. We deliberately do not
 		// gate on m.streaming here; that field is presentation state only.
-		if msg.Type == tea.KeyEnter && !msg.Alt {
+		if msg.Code == tea.KeyEnter && !msg.Mod.Contains(tea.ModAlt) {
 			userText := strings.TrimSpace(m.textarea.Value())
 			if userText == "" {
 				break

@@ -3,18 +3,22 @@ package ui
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	border := textareaBorderNormal
 	if m.flashingReject {
 		border = textareaBorderReject
 	}
-	return lipgloss.JoinVertical(lipgloss.Left,
+	content := lipgloss.JoinVertical(lipgloss.Left,
 		m.viewport.View(),
 		border.Render(m.textarea.View()),
 	)
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
 }
 
 func (m *Model) rebuildViewport() {
@@ -95,8 +99,8 @@ func (m Model) welcomeScreen() string {
 		rightBlock,
 	)
 
-	w := m.viewport.Width
-	h := m.viewport.Height
+	w := m.viewport.Width()
+	h := m.viewport.Height()
 	if w <= 0 || h <= 0 {
 		return content
 	}

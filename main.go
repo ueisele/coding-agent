@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/ueisele/coding-agent/internal/agent"
 	"github.com/ueisele/coding-agent/internal/ui"
@@ -36,10 +36,7 @@ func main() {
 		},
 	}
 
-	p := tea.NewProgram(
-		ui.New(deps),
-		tea.WithAltScreen(),
-	)
+	p := tea.NewProgram(ui.New(deps))
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
