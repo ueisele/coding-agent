@@ -85,8 +85,9 @@ type Model struct {
 }
 
 const (
-	textareaHeight = 3
-	textareaChrome = 2 // border + padding around the textarea widget
+	textareaHeight     = 3
+	textareaChromeV    = 2 // top + bottom rounded border rows
+	textareaChromeH    = 4 // left + right border (2) + horizontal padding (2)
 )
 
 func New(deps Deps) Model {
@@ -141,8 +142,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasAtBottom := m.viewport.AtBottom()
 		m.width = msg.Width
 		m.height = msg.Height
-		m.textarea.SetWidth(msg.Width - textareaChrome)
-		vpHeight := msg.Height - textareaHeight - textareaChrome
+		m.textarea.SetWidth(msg.Width - textareaChromeH)
+		vpHeight := msg.Height - textareaHeight - textareaChromeV
 		if vpHeight < 3 {
 			vpHeight = 3
 		}
